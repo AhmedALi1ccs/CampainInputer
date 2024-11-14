@@ -89,7 +89,7 @@ def find_alternate_campaign_name_with_new_structure(settings_df, campaign_name):
 def main():
     st.title("Google Sheets Campaign Updater")
 
-    sheet_id = "1kldmjmZmtpvMbz_Jqb4pyjinOIYFke3jpYciWXGl91Y"
+    sheet_id = "17X63rlgieIfCbIi33f1NoqrsccnZyB6vDWZd0JgtgT4"
 
     sheet_name = st.text_input("Enter Google Sheet name (as it appears in Google Sheets):")
 

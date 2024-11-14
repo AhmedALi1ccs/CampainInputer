@@ -1,14 +1,30 @@
+import json
+import os
 import streamlit as st
 import gspread
 from google.oauth2.service_account import Credentials
 import pandas as pd
+from dotenv import load_dotenv
 
+load_dotenv()
 # Google Sheets setup
-def get_google_sheet_client(credentials_path, sheet_id):
+def get_google_sheet_client(sheet_id):
+    # Read credentials JSON from environment variable
+    credentials_json = os.getenv("GOOGLE_CREDENTIALS_JSON")
+    if not credentials_json:
+        raise ValueError("Credentials not found in environment variables")
+
+    # Parse JSON string to dictionary
+    credentials_info = json.loads(credentials_json)
+    
+    # Define the correct scope for Google Sheets API access
     scopes = ["https://www.googleapis.com/auth/spreadsheets"]
-    creds = Credentials.from_service_account_file(credentials_path, scopes=scopes)
+    
+    # Initialize credentials with the scope
+    creds = Credentials.from_service_account_info(credentials_info, scopes=scopes)
     client = gspread.authorize(creds)
     return client.open_by_key(sheet_id)
+
 
 # Function to find the specific occurrence of a column label based on the day index
 def get_column_index(label, index, header_row):
@@ -74,7 +90,7 @@ def main():
     st.title("Google Sheets Campaign Updater")
 
     sheet_id = "1kldmjmZmtpvMbz_Jqb4pyjinOIYFke3jpYciWXGl91Y"
-    credentials_path = "Credentials.json"
+
     sheet_name = st.text_input("Enter Google Sheet name (as it appears in Google Sheets):")
 
     update_type = st.selectbox("Select Update Type:", ["CTC", "Log type"])
@@ -96,7 +112,7 @@ def main():
         st.write("Aggregated Data Preview:", connects_target_df.head())
 
         try:
-            workbook = get_google_sheet_client(credentials_path, sheet_id)
+            workbook = get_google_sheet_client(sheet_id)
             worksheet = workbook.worksheet(sheet_name)
             settings_sheet = workbook.worksheet("AhmedSettings")
             settings_data = settings_sheet.get_all_records()

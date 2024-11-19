@@ -38,12 +38,36 @@ def safe_update_cell(worksheet, row, col, value, max_retries=7):
                 raise e  # Reraise other exceptions
     st.error("Max retries reached. Update failed.")
 
+# Get the current value in a cell, sum it with the new value, and update the cell
+def safe_sum_and_update_cell(worksheet, row, col, new_value, max_retries=5):
+    retry_count = 0
+    while retry_count < max_retries:
+        try:
+            current_value = worksheet.cell(row, col).value  # Get the current cell value
+            current_value = float(current_value) if current_value and current_value.isdigit() else 0
+            new_value = float(new_value) if new_value else 0
+            total = current_value + new_value  # Sum the current and new values
+            worksheet.update_cell(row, col, total)  # Update the cell with the new total
+            return  # Success
+        except gspread.exceptions.APIError as e:
+            if e.response.status_code == 429:  # Too Many Requests
+                retry_count += 1
+                wait_time = 2 ** retry_count
+                st.warning(f"Rate limit hit. Retrying in {wait_time} seconds... ({retry_count}/{max_retries})")
+                time.sleep(wait_time)
+            else:
+                raise e
+        except ValueError as e:  # Handle invalid numbers gracefully
+            st.error(f"Invalid value in the cell. Skipping update for row {row}, col {col}. Error: {e}")
+            return
+    st.error("Max retries reached. Update failed.")
+
 # Function to find the specific occurrence of a column label based on the day index
 def get_column_index(label, index, header_row):
     occurrences = [i for i, cell in enumerate(header_row) if cell.strip() == label]
     return occurrences[index] + 1 if index < len(occurrences) else None  # 1-based indexing
 
-# Load, process, and rename columns in CSV data for CTC type
+# Load and process CSV data for CTC type
 def load_and_process_csv(file):
     data = pd.read_csv(file)
     data = data.dropna(subset=['Campaign'])
@@ -154,12 +178,12 @@ def main():
 
                     if camp_row_index:
                         if update_type == "CTC":
-                            safe_update_cell(worksheet, camp_row_index, target_columns["Calls"], row['Calls'])
-                            safe_update_cell(worksheet, camp_row_index, target_columns["Connects"], row['Connects'])
-                            safe_update_cell(worksheet, camp_row_index, target_columns["CTC"], row['CTC'])
-                            safe_update_cell(worksheet, camp_row_index, target_columns["Abandoned"], row['Abandoned'])
+                            safe_sum_and_update_cell(worksheet, camp_row_index, target_columns["Calls"], row['Calls'])
+                            safe_sum_and_update_cell(worksheet, camp_row_index, target_columns["Connects"], row['Connects'])
+                            safe_sum_and_update_cell(worksheet, camp_row_index, target_columns["CTC"], row['CTC'])
+                            safe_sum_and_update_cell(worksheet, camp_row_index, target_columns["Abandoned"], row['Abandoned'])
                         else:
-                            safe_update_cell(worksheet, camp_row_index, target_columns["Logged Calls"], row['Logged Calls'])
+                            safe_sum_and_update_cell(worksheet, camp_row_index, target_columns["Logged Calls"], row['Logged Calls'])
                             if "Dial Time" in target_columns:
                                 safe_update_cell(worksheet, camp_row_index, target_columns["Dial Time"], row['Dial Time'])
                         st.success(f"Updated {camp_name} from file {uploaded_file.name}")
